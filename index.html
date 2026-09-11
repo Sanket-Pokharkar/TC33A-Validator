@@ -24,22 +24,22 @@ body.transformed-mode>header,body.transformed-mode main>section:not(:last-of-typ
 body.transformed-mode main{max-width:none;margin:0;padding:0;width:100vw;height:100vh}
 body.transformed-mode main>section:last-of-type{position:fixed;inset:0;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;background:#fff;z-index:500}
 body.transformed-mode .viewer-shell{width:100vw;height:100vh;border:0;border-radius:0;overflow-y:auto;overflow-x:hidden;background:#fff}
-body.transformed-mode .viewer-toolbar{height:48px;padding:6px 24px;width:100%;flex-wrap:nowrap}
+body.transformed-mode .viewer-toolbar{height:48px;padding:6px var(--side-padding,24px);width:100%;flex-wrap:nowrap}
 body.transformed-mode .legend{display:none}
-body.transformed-mode .editor{width:calc(100% - 48px);margin:0 24px;min-width:0;grid-template-columns:var(--gutter-width,44px) minmax(0,1fr);font-size:var(--fit-font-size,12px);line-height:1.65;padding:10px 0 14px}
+body.transformed-mode .editor{width:auto;margin:0 var(--side-padding,24px);min-width:0;grid-template-columns:var(--gutter-width,44px) minmax(0,1fr);font-size:var(--fit-font-size,12px);line-height:1.65;padding:10px 0 14px}
 body.transformed-mode .gutter{width:var(--gutter-width,44px)}
 body.transformed-mode .content{width:100%;min-width:0;padding-right:0;overflow:hidden}
-body.transformed-mode .cline{width:100%;padding-left:4px;height:calc(var(--fit-font-size,12px) * 1.65);white-space:pre;overflow:visible}
+body.transformed-mode .cline{width:100%;padding:0 4px;height:calc(var(--fit-font-size,12px) * 1.65);white-space:pre;overflow:visible}
 body.transformed-mode .gline{height:calc(var(--fit-font-size,12px) * 1.65);padding:0 5px}
 .exit-full{display:none;background:#dc2626;color:#fff;white-space:nowrap}
 body.transformed-mode .exit-full{display:inline-block}
 .tooltip{z-index:5000!important}
-.field.cp01-marker{background:#a94442!important;color:#fff!important;font-weight:700}
+.field.cp01-marker,.field.rrn-marker{background:#a94442!important;color:#fff!important;font-weight:700}
 @media(max-width:900px){body.transformed-mode .viewer-toolbar{padding-left:12px;padding-right:12px}body.transformed-mode .editor{width:calc(100% - 24px);margin-left:12px;margin-right:12px}body.transformed-mode .viewer-toolbar button{padding:7px 9px;font-size:12px}.status{display:none}}
 </style>
 </head>
 <body>
-<header><h1>TC33A Fixed-Width Visualizer V4</h1><p>Single large colored file viewer with hover details and field-only double-click selection.</p></header>
+<header><h1>TC33A Fixed-Width Visualizer :) </h1><p>Single large colored file viewer with hover details and field-only double-click selection.</p></header>
 <main>
 <section class="panel"><strong>Paste TC33A file</strong><p style="margin:5px 0 10px;color:#64748b;font-size:13px">Paste the complete file with actual spaces. The source remains unchanged; spaces are shown as hyphens only in the transformed viewer.</p>
 <textarea id="src" spellcheck="false" placeholder="Paste TC33A file here..."></textarea>
@@ -71,22 +71,35 @@ let original='',display='',selected=null,hits=[],hitIndex=-1;const q=id=>documen
 function detect(line,ctx){const t=line[3]||'';if(t==='0'){const a=line.slice(16,20);if(a==='CP01'||a==='CP12')return [`${a} TCR0`,a];if(a==='HEDR'||a==='TRLR')return[a,null];return['Unknown TCR0',null]}if(ctx&&/[1-8]/.test(t))return[`${ctx} TCR${t}`,ctx];return['Unknown Record',ctx]}
 function fitViewer(){
  if(!document.body.classList.contains('transformed-mode'))return;
- const shell=q('shell');
- const sidePadding=window.innerWidth<=900?24:48;
+ const shell=q('shell'), editor=q('viewer'), content=editor.querySelector('.content');
+ if(!content)return;
+ const sidePadding=window.innerWidth<=900?12:24;
  const gutter=Math.max(38,String(document.querySelectorAll('.gline').length).length*9+18);
+ document.body.style.setProperty('--side-padding',sidePadding+'px');
  document.body.style.setProperty('--gutter-width',gutter+'px');
- const available=Math.max(320,shell.clientWidth-sidePadding-gutter-8);
- const probe=document.createElement('span');
- probe.style.cssText='position:fixed;visibility:hidden;white-space:pre;font-family:Consolas,monospace;font-size:100px';
- probe.textContent='0'.repeat(168);document.body.appendChild(probe);
- const widthAt100=probe.getBoundingClientRect().width;probe.remove();
- const size=Math.max(5.2,Math.min(14,available/widthAt100*100));
- document.body.style.setProperty('--fit-font-size',size.toFixed(2)+'px');
+ const available=Math.max(260,shell.clientWidth-(sidePadding*2)-gutter-10);
+ // Measure the real rendered line rather than assuming a specific browser/font metric.
+ document.body.style.setProperty('--fit-font-size','14px');
+ const lines=[...content.querySelectorAll('.cline')];
+ let widest=0;
+ lines.forEach(line=>{widest=Math.max(widest,line.scrollWidth)});
+ if(!widest)return;
+ let size=Math.min(14,14*(available/widest));
+ size=Math.max(4.5,size*0.985); // small safety margin prevents browser rounding overflow
+ document.body.style.setProperty('--fit-font-size',size.toFixed(3)+'px');
+ // Second pass handles font substitution and delayed layout differences on hosted pages.
+ requestAnimationFrame(()=>{
+  let actual=0;lines.forEach(line=>{actual=Math.max(actual,line.scrollWidth)});
+  if(actual>available){
+   const current=parseFloat(getComputedStyle(editor).fontSize);
+   document.body.style.setProperty('--fit-font-size',Math.max(4.2,current*(available/actual)*0.99).toFixed(3)+'px');
+  }
+ });
 }
 function enterFullView(){document.body.classList.add('transformed-mode');requestAnimationFrame(()=>{fitViewer();q('shell').scrollTop=0})}
-function exitFullView(){document.body.classList.remove('transformed-mode');document.body.style.removeProperty('--fit-font-size');document.body.style.removeProperty('--gutter-width');q('tip').style.display='none'}
+function exitFullView(){document.body.classList.remove('transformed-mode');document.body.style.removeProperty('--fit-font-size');document.body.style.removeProperty('--gutter-width');document.body.style.removeProperty('--side-padding');q('tip').style.display='none'}
 function transform(){original=q('src').value;if(!original.trim()){q('notice').textContent='Paste a TC33A file first.';return}q('notice').textContent='';let lines=original.replace(/\r/g,'').split('\n');if(q('ignoreEmpty').checked)lines=lines.filter(x=>x.length);if(lines.some(x=>x.includes('\t')))q('notice').textContent='Warning: Tabs detected. Tabs do not have a reliable fixed width.';let ctx=null,g='',c='',valid=0,bad=0,unknown=0,hedr=0,trlr=0,cp01=0,cp12=0;const transformed=[];
-lines.forEach((source,i)=>{let line=q('dashInput').checked?source.replace(/-/g,' '):source;const [name,next]=detect(line,ctx);ctx=next;if(name==='HEDR')hedr++;if(name==='TRLR')trlr++;if(name==='CP01 TCR0')cp01++;if(name==='CP12 TCR0')cp12++;const fields=L[name],isValid=line.length===168;if(isValid)valid++;else bad++;if(!fields)unknown++;g+=`<div class="gline ${!isValid?'bad':!fields?'unknown':''}" title="Line ${i+1}: ${esc(name)}, length ${line.length}">${i+1}</div>`;let content='';if(fields){fields.forEach((f,j)=>{let raw=line.slice(f.start-1,f.end);if(raw.length<f.length)raw=raw.padEnd(f.length,' ');content+=`<span class="field${raw==='CP01'?' cp01-marker':''}" data-field="${esc(f.name)}" data-record="${esc(name)}" data-line="${i+1}" data-position="${f.start}${f.end===f.start?'':'-'+f.end}" data-length="${f.length}" data-original="${esc(raw)}" style="background:${P[j%P.length]}">${esc(vis(raw))}</span>`});if(line.length>168){const ex=line.slice(168);content+=`<span class="field extra" data-field="Extra Characters" data-record="${esc(name)}" data-line="${i+1}" data-position="169-${line.length}" data-length="${ex.length}" data-original="${esc(ex)}">${esc(vis(ex))}</span>`}}else content=`<span class="field" data-field="Unknown Record" data-record="${esc(name)}" data-line="${i+1}" data-position="1-${line.length}" data-length="${line.length}" data-original="${esc(line)}" style="background:#fee2e2">${esc(vis(line))}</span>`;c+=`<div class="cline" data-record="${esc(name)}">${content}</div>`;transformed.push(vis(line))});
+lines.forEach((source,i)=>{let line=q('dashInput').checked?source.replace(/-/g,' '):source;const [name,next]=detect(line,ctx);ctx=next;if(name==='HEDR')hedr++;if(name==='TRLR')trlr++;if(name==='CP01 TCR0')cp01++;if(name==='CP12 TCR0')cp12++;const fields=L[name],isValid=line.length===168;if(isValid)valid++;else bad++;if(!fields)unknown++;g+=`<div class="gline ${!isValid?'bad':!fields?'unknown':''}" title="Line ${i+1}: ${esc(name)}, length ${line.length}">${i+1}</div>`;let content='';if(fields){fields.forEach((f,j)=>{let raw=line.slice(f.start-1,f.end);if(raw.length<f.length)raw=raw.padEnd(f.length,' ');content+=`<span class="field${raw==='CP01'?' cp01-marker':''}${f.name==='Retrieval Reference Number'?' rrn-marker':''}" data-field="${esc(f.name)}" data-record="${esc(name)}" data-line="${i+1}" data-position="${f.start}${f.end===f.start?'':'-'+f.end}" data-length="${f.length}" data-original="${esc(raw)}" style="background:${P[j%P.length]}">${esc(vis(raw))}</span>`});if(line.length>168){const ex=line.slice(168);content+=`<span class="field extra" data-field="Extra Characters" data-record="${esc(name)}" data-line="${i+1}" data-position="169-${line.length}" data-length="${ex.length}" data-original="${esc(ex)}">${esc(vis(ex))}</span>`}}else content=`<span class="field" data-field="Unknown Record" data-record="${esc(name)}" data-line="${i+1}" data-position="1-${line.length}" data-length="${line.length}" data-original="${esc(line)}" style="background:#fee2e2">${esc(vis(line))}</span>`;c+=`<div class="cline" data-record="${esc(name)}">${content}</div>`;transformed.push(vis(line))});
 display=transformed.join('\n');q('viewer').className='editor';q('viewer').innerHTML=`<div class="gutter">${g}</div><div class="content">${c}</div>`;const m=[['Lines',lines.length],['Valid 168-char',valid],['Invalid length',bad],['HEDR',hedr],['TRLR',trlr],['CP01 groups',cp01],['CP12 groups',cp12],['Unknown',unknown]];q('summary').innerHTML=m.map(x=>`<div><b>${x[1]}</b><span>${x[0]}</span></div>`).join('');q('summaryPanel').hidden=false;bindFields();enterFullView()}
 function bindFields(){
  const viewer=q('viewer'),tip=q('tip');
@@ -97,5 +110,5 @@ function bindFields(){
 }
 async function copy(text,msg){try{await navigator.clipboard.writeText(text);q('copyStatus').textContent=msg;setTimeout(()=>q('copyStatus').textContent='',1600)}catch{q('copyStatus').textContent='Copy failed'}}
 function findNext(){document.querySelectorAll('.search-hit').forEach(x=>x.classList.remove('search-hit'));const s=q('search').value.trim().toLowerCase();if(!s)return;hits=[...document.querySelectorAll('.field')].filter(f=>f.dataset.field.toLowerCase().includes(s)||f.dataset.record.toLowerCase().includes(s)||f.textContent.toLowerCase().includes(s)||('line '+f.dataset.line).includes(s));if(!hits.length){q('copyStatus').textContent='No match';return}hitIndex=(hitIndex+1)%hits.length;hits[hitIndex].classList.add('search-hit');hits[hitIndex].scrollIntoView({block:'center',inline:'center'})}
-q('transform').onclick=transform;q('exitFull').onclick=exitFullView;window.addEventListener('resize',fitViewer);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('transformed-mode'))exitFullView()});q('clear').onclick=()=>{q('src').value='';q('viewer').className='empty';q('viewer').textContent='Transformed file will appear here as one continuous text-area-style view.';q('summaryPanel').hidden=true;q('notice').textContent=''};q('sample').onclick=()=>q('src').value='3305san23'.padEnd(168,' ');q('find').onclick=findNext;q('search').onkeydown=e=>{if(e.key==='Enter')findNext()};q('copyOriginal').onclick=()=>copy(original,'Original copied');q('copyDisplay').onclick=()=>copy(display,'Transformed copied');q('copyField').onclick=()=>selected?copy(selected.textContent,'Field copied'):(q('copyStatus').textContent='Double-click a field first');
+q('transform').onclick=transform;q('exitFull').onclick=exitFullView;window.addEventListener('resize',fitViewer);window.addEventListener('load',()=>requestAnimationFrame(fitViewer));document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('transformed-mode'))exitFullView()});q('clear').onclick=()=>{q('src').value='';q('viewer').className='empty';q('viewer').textContent='Transformed file will appear here as one continuous text-area-style view.';q('summaryPanel').hidden=true;q('notice').textContent=''};q('sample').onclick=()=>q('src').value='3305san23'.padEnd(168,' ');q('find').onclick=findNext;q('search').onkeydown=e=>{if(e.key==='Enter')findNext()};q('copyOriginal').onclick=()=>copy(original,'Original copied');q('copyDisplay').onclick=()=>copy(display,'Transformed copied');q('copyField').onclick=()=>selected?copy(selected.textContent,'Field copied'):(q('copyStatus').textContent='Double-click a field first');
 </script></body></html>
