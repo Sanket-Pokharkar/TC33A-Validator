@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TC33A Visualizer V3 Hover Fixed</title>
+<title>TC33A Visualizer</title>
 <style>
 :root{--blue:#174ea6;--border:#cfd8e6;--bg:#f5f7fb;--text:#172033}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Segoe UI,Arial,sans-serif}
@@ -18,15 +18,15 @@ textarea{width:100%;height:220px;resize:vertical;padding:12px;border:1px solid #
 .tooltip{display:none;position:fixed;z-index:100;background:#111827;color:#fff;border-radius:6px;padding:7px 9px;font:12px/1.45 Segoe UI,Arial,sans-serif;pointer-events:none;box-shadow:0 5px 18px #0004}
 .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px;font-size:12px;color:#64748b}.dot{display:inline-block;width:13px;height:13px;border-radius:3px;vertical-align:-2px;margin-right:4px}.notice{font-size:13px;color:#b42318;margin-top:7px}.empty{padding:50px;color:#64748b;text-align:center}
 
-/* V3 full-screen fitted viewer */
+/* V4: full-screen, centered output, equal side padding */
 body.transformed-mode{overflow:hidden;background:#fff}
 body.transformed-mode>header,body.transformed-mode main>section:not(:last-of-type){display:none!important}
 body.transformed-mode main{max-width:none;margin:0;padding:0;width:100vw;height:100vh}
 body.transformed-mode main>section:last-of-type{position:fixed;inset:0;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;background:#fff;z-index:500}
-body.transformed-mode .viewer-shell{width:100vw;height:100vh;border:0;border-radius:0;overflow-y:auto;overflow-x:hidden}
-body.transformed-mode .viewer-toolbar{height:48px;padding:6px 10px;width:100%;flex-wrap:nowrap}
+body.transformed-mode .viewer-shell{width:100vw;height:100vh;border:0;border-radius:0;overflow-y:auto;overflow-x:hidden;background:#fff}
+body.transformed-mode .viewer-toolbar{height:48px;padding:6px 24px;width:100%;flex-wrap:nowrap}
 body.transformed-mode .legend{display:none}
-body.transformed-mode .editor{width:100%;min-width:0;grid-template-columns:var(--gutter-width,44px) minmax(0,1fr);font-size:var(--fit-font-size,12px);line-height:1.65;padding-bottom:10px}
+body.transformed-mode .editor{width:calc(100% - 48px);margin:0 24px;min-width:0;grid-template-columns:var(--gutter-width,44px) minmax(0,1fr);font-size:var(--fit-font-size,12px);line-height:1.65;padding:10px 0 14px}
 body.transformed-mode .gutter{width:var(--gutter-width,44px)}
 body.transformed-mode .content{width:100%;min-width:0;padding-right:0;overflow:hidden}
 body.transformed-mode .cline{width:100%;padding-left:4px;height:calc(var(--fit-font-size,12px) * 1.65);white-space:pre;overflow:visible}
@@ -34,10 +34,12 @@ body.transformed-mode .gline{height:calc(var(--fit-font-size,12px) * 1.65);paddi
 .exit-full{display:none;background:#dc2626;color:#fff;white-space:nowrap}
 body.transformed-mode .exit-full{display:inline-block}
 .tooltip{z-index:5000!important}
+.field.cp01-marker{background:#a94442!important;color:#fff!important;font-weight:700}
+@media(max-width:900px){body.transformed-mode .viewer-toolbar{padding-left:12px;padding-right:12px}body.transformed-mode .editor{width:calc(100% - 24px);margin-left:12px;margin-right:12px}body.transformed-mode .viewer-toolbar button{padding:7px 9px;font-size:12px}.status{display:none}}
 </style>
 </head>
 <body>
-<header><h1>TC33A Fixed-Width Visualizer V3</h1><p>Single large colored file viewer with hover details and field-only double-click selection.</p></header>
+<header><h1>TC33A Fixed-Width Visualizer V4</h1><p>Single large colored file viewer with hover details and field-only double-click selection.</p></header>
 <main>
 <section class="panel"><strong>Paste TC33A file</strong><p style="margin:5px 0 10px;color:#64748b;font-size:13px">Paste the complete file with actual spaces. The source remains unchanged; spaces are shown as hyphens only in the transformed viewer.</p>
 <textarea id="src" spellcheck="false" placeholder="Paste TC33A file here..."></textarea>
@@ -70,9 +72,10 @@ function detect(line,ctx){const t=line[3]||'';if(t==='0'){const a=line.slice(16,
 function fitViewer(){
  if(!document.body.classList.contains('transformed-mode'))return;
  const shell=q('shell');
+ const sidePadding=window.innerWidth<=900?24:48;
  const gutter=Math.max(38,String(document.querySelectorAll('.gline').length).length*9+18);
  document.body.style.setProperty('--gutter-width',gutter+'px');
- const available=Math.max(320,shell.clientWidth-gutter-10);
+ const available=Math.max(320,shell.clientWidth-sidePadding-gutter-8);
  const probe=document.createElement('span');
  probe.style.cssText='position:fixed;visibility:hidden;white-space:pre;font-family:Consolas,monospace;font-size:100px';
  probe.textContent='0'.repeat(168);document.body.appendChild(probe);
@@ -83,34 +86,14 @@ function fitViewer(){
 function enterFullView(){document.body.classList.add('transformed-mode');requestAnimationFrame(()=>{fitViewer();q('shell').scrollTop=0})}
 function exitFullView(){document.body.classList.remove('transformed-mode');document.body.style.removeProperty('--fit-font-size');document.body.style.removeProperty('--gutter-width');q('tip').style.display='none'}
 function transform(){original=q('src').value;if(!original.trim()){q('notice').textContent='Paste a TC33A file first.';return}q('notice').textContent='';let lines=original.replace(/\r/g,'').split('\n');if(q('ignoreEmpty').checked)lines=lines.filter(x=>x.length);if(lines.some(x=>x.includes('\t')))q('notice').textContent='Warning: Tabs detected. Tabs do not have a reliable fixed width.';let ctx=null,g='',c='',valid=0,bad=0,unknown=0,hedr=0,trlr=0,cp01=0,cp12=0;const transformed=[];
-lines.forEach((source,i)=>{let line=q('dashInput').checked?source.replace(/-/g,' '):source;const [name,next]=detect(line,ctx);ctx=next;if(name==='HEDR')hedr++;if(name==='TRLR')trlr++;if(name==='CP01 TCR0')cp01++;if(name==='CP12 TCR0')cp12++;const fields=L[name],isValid=line.length===168;if(isValid)valid++;else bad++;if(!fields)unknown++;g+=`<div class="gline ${!isValid?'bad':!fields?'unknown':''}" title="Line ${i+1}: ${esc(name)}, length ${line.length}">${i+1}</div>`;let content='';if(fields){fields.forEach((f,j)=>{let raw=line.slice(f.start-1,f.end);if(raw.length<f.length)raw=raw.padEnd(f.length,' ');content+=`<span class="field" data-field="${esc(f.name)}" data-record="${esc(name)}" data-line="${i+1}" data-position="${f.start}${f.end===f.start?'':'-'+f.end}" data-length="${f.length}" data-original="${esc(raw)}" style="background:${P[j%P.length]}">${esc(vis(raw))}</span>`});if(line.length>168){const ex=line.slice(168);content+=`<span class="field extra" data-field="Extra Characters" data-record="${esc(name)}" data-line="${i+1}" data-position="169-${line.length}" data-length="${ex.length}" data-original="${esc(ex)}">${esc(vis(ex))}</span>`}}else content=`<span class="field" data-field="Unknown Record" data-record="${esc(name)}" data-line="${i+1}" data-position="1-${line.length}" data-length="${line.length}" data-original="${esc(line)}" style="background:#fee2e2">${esc(vis(line))}</span>`;c+=`<div class="cline" data-record="${esc(name)}">${content}</div>`;transformed.push(vis(line))});
+lines.forEach((source,i)=>{let line=q('dashInput').checked?source.replace(/-/g,' '):source;const [name,next]=detect(line,ctx);ctx=next;if(name==='HEDR')hedr++;if(name==='TRLR')trlr++;if(name==='CP01 TCR0')cp01++;if(name==='CP12 TCR0')cp12++;const fields=L[name],isValid=line.length===168;if(isValid)valid++;else bad++;if(!fields)unknown++;g+=`<div class="gline ${!isValid?'bad':!fields?'unknown':''}" title="Line ${i+1}: ${esc(name)}, length ${line.length}">${i+1}</div>`;let content='';if(fields){fields.forEach((f,j)=>{let raw=line.slice(f.start-1,f.end);if(raw.length<f.length)raw=raw.padEnd(f.length,' ');content+=`<span class="field${raw==='CP01'?' cp01-marker':''}" data-field="${esc(f.name)}" data-record="${esc(name)}" data-line="${i+1}" data-position="${f.start}${f.end===f.start?'':'-'+f.end}" data-length="${f.length}" data-original="${esc(raw)}" style="background:${P[j%P.length]}">${esc(vis(raw))}</span>`});if(line.length>168){const ex=line.slice(168);content+=`<span class="field extra" data-field="Extra Characters" data-record="${esc(name)}" data-line="${i+1}" data-position="169-${line.length}" data-length="${ex.length}" data-original="${esc(ex)}">${esc(vis(ex))}</span>`}}else content=`<span class="field" data-field="Unknown Record" data-record="${esc(name)}" data-line="${i+1}" data-position="1-${line.length}" data-length="${line.length}" data-original="${esc(line)}" style="background:#fee2e2">${esc(vis(line))}</span>`;c+=`<div class="cline" data-record="${esc(name)}">${content}</div>`;transformed.push(vis(line))});
 display=transformed.join('\n');q('viewer').className='editor';q('viewer').innerHTML=`<div class="gutter">${g}</div><div class="content">${c}</div>`;const m=[['Lines',lines.length],['Valid 168-char',valid],['Invalid length',bad],['HEDR',hedr],['TRLR',trlr],['CP01 groups',cp01],['CP12 groups',cp12],['Unknown',unknown]];q('summary').innerHTML=m.map(x=>`<div><b>${x[1]}</b><span>${x[0]}</span></div>`).join('');q('summaryPanel').hidden=false;bindFields();enterFullView()}
 function bindFields(){
  const viewer=q('viewer'),tip=q('tip');
- viewer.onpointerover=e=>{
-  const f=e.target.closest('.field');if(!f)return;
-  tip.innerHTML=`Field: ${esc(f.dataset.field)}<br>Position: ${f.dataset.position}<br>Length: ${f.dataset.length}`;
-  tip.style.display='block';
- };
- viewer.onpointermove=e=>{
-  if(tip.style.display!=='block')return;
-  const gap=14,w=tip.offsetWidth,h=tip.offsetHeight;
-  let left=e.clientX+gap,top=e.clientY+gap;
-  if(left+w>window.innerWidth-6)left=e.clientX-w-gap;
-  if(top+h>window.innerHeight-6)top=e.clientY-h-gap;
-  tip.style.left=Math.max(4,left)+'px';tip.style.top=Math.max(4,top)+'px';
- };
- viewer.onpointerout=e=>{
-  const from=e.target.closest&&e.target.closest('.field');
-  const to=e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('.field');
-  if(from!==to)tip.style.display='none';
- };
- viewer.ondblclick=e=>{
-  const f=e.target.closest('.field');if(!f)return;e.preventDefault();
-  document.querySelectorAll('.field.selected').forEach(x=>x.classList.remove('selected'));
-  f.classList.add('selected');selected=f;
-  const r=document.createRange();r.selectNodeContents(f);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);
- };
+ viewer.onpointerover=e=>{const f=e.target.closest('.field');if(!f)return;tip.innerHTML=`Field: ${esc(f.dataset.field)}<br>Position: ${f.dataset.position}<br>Length: ${f.dataset.length}`;tip.style.display='block'};
+ viewer.onpointermove=e=>{if(tip.style.display!=='block')return;const gap=14,w=tip.offsetWidth,h=tip.offsetHeight;let left=e.clientX+gap,top=e.clientY+gap;if(left+w>window.innerWidth-6)left=e.clientX-w-gap;if(top+h>window.innerHeight-6)top=e.clientY-h-gap;tip.style.left=Math.max(4,left)+'px';tip.style.top=Math.max(4,top)+'px'};
+ viewer.onpointerout=e=>{const from=e.target.closest&&e.target.closest('.field');const to=e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('.field');if(from!==to)tip.style.display='none'};
+ viewer.ondblclick=e=>{const f=e.target.closest('.field');if(!f)return;e.preventDefault();document.querySelectorAll('.field.selected').forEach(x=>x.classList.remove('selected'));f.classList.add('selected');selected=f;const r=document.createRange();r.selectNodeContents(f);const sel=getSelection();sel.removeAllRanges();sel.addRange(r)};
 }
 async function copy(text,msg){try{await navigator.clipboard.writeText(text);q('copyStatus').textContent=msg;setTimeout(()=>q('copyStatus').textContent='',1600)}catch{q('copyStatus').textContent='Copy failed'}}
 function findNext(){document.querySelectorAll('.search-hit').forEach(x=>x.classList.remove('search-hit'));const s=q('search').value.trim().toLowerCase();if(!s)return;hits=[...document.querySelectorAll('.field')].filter(f=>f.dataset.field.toLowerCase().includes(s)||f.dataset.record.toLowerCase().includes(s)||f.textContent.toLowerCase().includes(s)||('line '+f.dataset.line).includes(s));if(!hits.length){q('copyStatus').textContent='No match';return}hitIndex=(hitIndex+1)%hits.length;hits[hitIndex].classList.add('search-hit');hits[hitIndex].scrollIntoView({block:'center',inline:'center'})}
