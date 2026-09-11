@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TC33A Visualizer V3 Hover Fixed</title>
+<style>
+:root{--blue:#174ea6;--border:#cfd8e6;--bg:#f5f7fb;--text:#172033}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Segoe UI,Arial,sans-serif}
+header{padding:20px 28px;background:#153b75;color:#fff}header h1{margin:0 0 4px;font-size:24px}header p{margin:0;color:#dbe7ff}
+main{max-width:1600px;margin:20px auto;padding:0 18px}.panel{background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 4px 14px #25385812}
+textarea{width:100%;height:220px;resize:vertical;padding:12px;border:1px solid #b8c4d6;border-radius:7px;font:14px/1.5 Consolas,monospace;white-space:pre;overflow:auto;tab-size:4}
+.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:11px}button{border:0;border-radius:7px;padding:9px 15px;font-weight:600;cursor:pointer}.primary{background:#2563eb;color:#fff}.secondary{background:#e8eef8;color:#26364f}.outline{background:#fff;border:1px solid #b9c4d4}.check{font-size:13px;color:#455468}
+.summary{display:flex;gap:16px;flex-wrap:wrap;font-size:13px}.summary b{font-size:18px;display:block}.summary span{color:#64748b}
+.viewer-shell{height:500px;border:1px solid #aebbd0;border-radius:8px;background:#fff;overflow:auto;position:relative}
+.viewer-toolbar{display:flex;gap:8px;align-items:center;position:sticky;top:0;z-index:20;background:#eef3fa;border-bottom:1px solid #cbd5e1;padding:7px 10px}.viewer-toolbar input{width:280px;padding:7px;border:1px solid #b5c0d0;border-radius:6px}.status{margin-left:auto;font-size:12px;color:#64748b}
+.editor{display:grid;grid-template-columns:max-content max-content;align-items:start;min-width:max-content;font:14px/1.85 Consolas,monospace;white-space:pre;padding-bottom:20px}.gutter{position:sticky;left:0;z-index:10;background:#eef1f5;border-right:1px solid #cbd5e1;color:#6b7280;text-align:right;user-select:none}.gline,.cline{height:25.9px;padding:0 8px}.gline.bad{background:#fee2e2;color:#b42318}.gline.unknown{background:#fef3c7;color:#92400e}
+.content{padding-right:20px}.cline{padding-left:8px}.field{color:#111827;cursor:text;outline:0}.field:hover{box-shadow:inset 0 0 0 2px #334155}.field.selected{box-shadow:inset 0 0 0 3px #1d4ed8}.extra{background:#fecaca!important}.search-hit{box-shadow:inset 0 0 0 3px #e11d48}
+.tooltip{display:none;position:fixed;z-index:100;background:#111827;color:#fff;border-radius:6px;padding:7px 9px;font:12px/1.45 Segoe UI,Arial,sans-serif;pointer-events:none;box-shadow:0 5px 18px #0004}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px;font-size:12px;color:#64748b}.dot{display:inline-block;width:13px;height:13px;border-radius:3px;vertical-align:-2px;margin-right:4px}.notice{font-size:13px;color:#b42318;margin-top:7px}.empty{padding:50px;color:#64748b;text-align:center}
+
+/* V3 full-screen fitted viewer */
+body.transformed-mode{overflow:hidden;background:#fff}
+body.transformed-mode>header,body.transformed-mode main>section:not(:last-of-type){display:none!important}
+body.transformed-mode main{max-width:none;margin:0;padding:0;width:100vw;height:100vh}
+body.transformed-mode main>section:last-of-type{position:fixed;inset:0;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;background:#fff;z-index:500}
+body.transformed-mode .viewer-shell{width:100vw;height:100vh;border:0;border-radius:0;overflow-y:auto;overflow-x:hidden}
+body.transformed-mode .viewer-toolbar{height:48px;padding:6px 10px;width:100%;flex-wrap:nowrap}
+body.transformed-mode .legend{display:none}
+body.transformed-mode .editor{width:100%;min-width:0;grid-template-columns:var(--gutter-width,44px) minmax(0,1fr);font-size:var(--fit-font-size,12px);line-height:1.65;padding-bottom:10px}
+body.transformed-mode .gutter{width:var(--gutter-width,44px)}
+body.transformed-mode .content{width:100%;min-width:0;padding-right:0;overflow:hidden}
+body.transformed-mode .cline{width:100%;padding-left:4px;height:calc(var(--fit-font-size,12px) * 1.65);white-space:pre;overflow:visible}
+body.transformed-mode .gline{height:calc(var(--fit-font-size,12px) * 1.65);padding:0 5px}
+.exit-full{display:none;background:#dc2626;color:#fff;white-space:nowrap}
+body.transformed-mode .exit-full{display:inline-block}
+.tooltip{z-index:5000!important}
+</style>
+</head>
+<body>
+<header><h1>TC33A Fixed-Width Visualizer V3</h1><p>Single large colored file viewer with hover details and field-only double-click selection.</p></header>
+<main>
+<section class="panel"><strong>Paste TC33A file</strong><p style="margin:5px 0 10px;color:#64748b;font-size:13px">Paste the complete file with actual spaces. The source remains unchanged; spaces are shown as hyphens only in the transformed viewer.</p>
+<textarea id="src" spellcheck="false" placeholder="Paste TC33A file here..."></textarea>
+<div class="toolbar"><button class="primary" id="transform">Transform</button><button class="secondary" id="clear">Clear</button><button class="outline" id="sample">Load Sample</button><label class="check"><input type="checkbox" id="dashInput"> Treat input hyphens as spaces</label><label class="check"><input type="checkbox" id="ignoreEmpty" checked> Ignore empty lines</label></div><div id="notice" class="notice"></div></section>
+<section class="panel" id="summaryPanel" hidden><div class="summary" id="summary"></div></section>
+<section class="panel"><div class="viewer-shell" id="shell"><div class="viewer-toolbar"><button class="exit-full" id="exitFull">Exit Full Screen</button><input id="search" placeholder="Search field, value, record, or line"><button class="outline" id="find">Find next</button><button class="outline" id="copyOriginal">Copy Original File</button><button class="outline" id="copyDisplay">Copy Transformed File</button><button class="outline" id="copyField">Copy Selected Field</button><span class="status" id="copyStatus"></span></div><div id="viewer" class="empty">Transformed file will appear here as one continuous text-area-style view.</div></div>
+<div class="legend"><span><i class="dot" style="background:#dcfce7"></i>Valid line</span><span><i class="dot" style="background:#fee2e2"></i>Invalid length</span><span><i class="dot" style="background:#fef3c7"></i>Unknown layout</span></div></section>
+</main><div id="tip" class="tooltip"></div>
+<script>
+const F=(name,start,end)=>({name,start,end,length:end-start+1});
+const C=[F('Transaction Code',1,2),F('Transaction Code Qualifier',3,3),F('Transaction Component Sequence Number',4,4)];
+const L={
+'HEDR':[...C,F('Destination Identifier',5,10),F('Source Identifier',11,16),F('TC33 Application Code',17,20),F('Capture File Number',21,24),F('Capture Creation Date',25,32),F('Reserved',33,168)],
+'TRLR':[...C,F('Destination Identifier',5,10),F('Source Identifier',11,16),F('TC33 Application Code',17,20),F('Capture File Number',21,24),F('Capture Creation Date',25,32),F('Trailer Data',33,168)],
+'CP01 TCR0':[...C,F('Destination Identifier',5,10),F('Source Identifier',11,16),F('TC33 Application Code',17,20),F('Message Identifier',21,35),F('Transaction Identifier',36,50),F('Retrieval Reference Number',51,62),F('Account Number',63,78),F('Account Number Extension',79,81),F('Expiration Date',82,85),F('Purchase Date',86,89),F('Authorization Date',90,93),F('Decimal Positions Indicator',94,95),F('Authorized Amount',96,107),F('Authorization Currency Code',108,110),F('Total Authorized Amount',111,122),F('Source Amount',123,134),F('Source Currency Code',135,137),F('Tip Amount',138,149),F('Action Code',150,151),F('Service Identifier',152,153),F('Acquiring Identifier',154,159),F('Message Reason Code',160,163),F('Additional Authorization Indicator',164,164),F('Domestic Switch ID',165,168)],
+'CP01 TCR1':[...C,F('Capture Date',5,8),F('Authorization Code',9,14),F('POS Entry Mode',15,16),F('Card Acceptor ID',17,31),F('Terminal ID',32,39),F('Mail/Phone/E-Commerce Indicator',40,40),F('Unattended Acceptance Terminal Indicator',41,41),F('AVS Response Code',42,42),F('Authorization Source Code',43,43),F('Purchase Identifier Format',44,44),F('Purchase Identifier',45,69),F('Card ID',70,71),F('POS Condition Code',72,73),F('Processing Code',74,79),F('Network ID',80,83),F('Authorization Response Code',84,85),F('Validation Code',86,89),F('Market-Specific Authorization Data Indicator',90,90),F('Product ID',91,92),F('Program ID',93,98),F('CVV2 Result Code',99,99),F('Authorization Characteristics Indicator',100,100),F('POS Terminal Capability',101,101),F('Cardholder ID Method',102,102),F('Request ID',103,128),F('E-Commerce Goods Indicator',129,130),F('Fee Program Indicator',131,133),F('Service Development Field',134,134),F('Account Selection',135,135),F('POS Environment',136,136),F('Time of Purchase',137,140),F('Batch Request ID',141,166),F('Spend Qualified Indicator',167,167),F('CAVV Results Code',168,168)],
+'CP01 TCR2':[...C,F('Bill to Last Name',5,64),F('Bill to First Name',65,124),F('Bill to Postal Code',125,135),F('Ship to Postal Code',136,155),F('Ship to State/Province Code',156,158),F('Ship from Postal Code',159,168)],
+'CP01 TCR3':[...C,F('Ship to Country Code',5,7),F('Address Line 1',8,47),F('Address Line 2',48,87),F('City',88,137),F('State',138,157),F('Country Code',158,160),F('Reserved',161,168)],
+'CP01 TCR4':[...C,F('Merchant Name',5,29),F('Merchant Street Address',30,89),F('Merchant City',90,102),F('Merchant State/Province Code',103,105),F('Merchant Postal Code',106,119),F('Merchant Country Code',120,122),F('Merchant Telephone Number',123,136),F('Merchant URL/email',137,149),F('Merchant Category Code',150,153),F('Merchant Verification Value',154,163),F('Region Code',164,166),F('Reserved',167,168)],
+'CP01 TCR5':[...C,F('Installment Payment Total Amount',5,16),F('Installment Payment Currency Code',17,19),F('Number of Installments',20,22),F('Installment Amount / Sub Amount',23,34),F('Installment Indicator Area',35,38),F('Recurring Payment Type',39,40),F('Installment Amount',41,52),F('Installment Fee',53,64),F('Installment APR',65,69),F('Installment Interest',70,74),F('Mastercard Installment Range',75,76),F('Remaining TCR5 Data',77,168)],
+'CP01 TCR6':[...C,F('Time Stamp',5,14),F('Merchant SIC Code',15,18),F('Mastercard POS Entry Mode',19,21),F('Mastercard POS PIN Capture Code',22,23),F('Mastercard/American Express POS Data',24,49),F('Mastercard Date and Time',50,59),F('Mastercard ICA',60,65),F('Mastercard Assigned ID',66,71),F('Payment Initiation Channel',72,73),F('E-Commerce Indicators',74,80),F('Service Code',81,83),F('Account Number Indicator',84,84),F('Product Code',85,87),F('Wallet Indicator',88,90),F('Cardholder Authentication Indicator',91,91),F('Terminal Compliance Indicator',92,93),F('Mobile Remote Payment Indicator',94,94),F('Payment Facilitator ID',95,105),F('ISO ID',106,116),F('Sub-Merchant ID',117,131),F('Member-defined Data',132,132),F('On-behalf Service',133,134),F('Results',135,135),F('Interchange Structure Indicator',136,137),F('UCAF Downgrade Reason',138,138),F('E-ID Request Value',139,140),F('mPOS Scenario',141,141),F('Meal Voucher Indicator',142,144),F('Low-Risk Merchant Indicator',145,146),F('Merchant Country of Origin',147,149),F('CIT/MIT Indicators',150,153),F('Transaction Type Identifier',154,156),F('Account Number Indicator 2',157,158),F('Token VDCU First Use',159,159),F('Visa Account Attack Intelligence Score',160,161),F('Mastercard Transaction Type Identifier',162,168)],
+'CP01 TCR7':[...C,F('UCAF Collection Indicator',5,5),F('Diners/Discover Network Information',6,34),F('Diners/Discover Transaction Qualifier',35,80),F('Gateway Transaction Identifier',81,95),F('Merchant Advice Code',96,99),F('MC/AMEX/Discover Data Codes',100,112),F('AVV Program Protocol',113,113),F('Mastercard AVV DS Transaction ID',114,149),F('Transit Transaction Type Indicator',150,151),F('Transportation Mode Indicator',152,153),F('CAVV Value',154,157),F('Merchant Payment Gateway ID',158,168)],
+'CP01 TCR8':[...C,F('Surcharge Amount',5,12),F('Surcharge Credit/Debit Indicator',13,13),F('DCC Indicator',14,14),F('Cashback Amount',15,23),F('Acquirer Merchant ID',24,38),F('Token Assurance Method',39,40),F('Token Requestor ID',41,51),F('PAN Account Range',52,70),F('Regulated Status',71,71),F('Reserved',72,76),F('CAVV Version and Authentication Action',77,78),F('Payment Account Reference Number',79,107),F('Business Application Identifier',108,109),F('Merchant Tax ID',110,124),F('Special Condition Indicator',125,125),F('Mastercard UCAF Data',126,157),F('Multiple Clearing Sequence Number',158,159),F('Multiple Clearing Sequence Count',160,161),F('Additional Token Response Information',162,162),F('Merchant to Acquirer Routing',163,163),F('Merchant Volume Indicator',164,165),F('Foreign Retailer Indicator',166,168)],
+'CP12 TCR0':[...C,F('Destination Identifier',5,10),F('Source Identifier',11,16),F('TC33 Application Code',17,20),F('Message Identifier',21,35),F('Persistent FX Exchange Provider',36,105),F('Persistent FX Exchange Rate',106,113),F('Transaction Local Date and Time',114,123),F('Maximum Processing Date',124,127),F('Original Requested Amount',128,139),F('Reserved',140,168)],
+'CP12 TCR1':[...C,F('Visa Merchant ID',5,12),F('System Trace Audit Name',13,18),F('Exchange Rate Table ID',19,23),F('Persistent FX Eligible Indicator',24,24),F('Persistent FX Applied Indicator',25,25),F('Local Tax',26,37),F('Local Tax Included',38,38),F('National Tax',39,50),F('National Tax Included',51,51),F('Total Taxes Amount',52,70),F('Recurrent Payment Type',71,71),F('Recurrent Payment Amount Indicator',72,72),F('Recurrent Payment Number',73,74),F('Recurrent Payment Frequency',75,76),F('Recurrent Registration Reference Number',77,111),F('Maximum Recurrent Payment Amount',112,123),F('Recurrent Validation Indicator',124,124),F('Selected Program ID',125,128),F('EV Connector Type',129,131),F('EV Charging Reason Code',132,134),F('Program Downgrade Reason Code',135,136),F('Account Funding Source',137,137),F('Agent Unique ID and EVV',138,148),F('Reserved',149,168)],
+'CP12 TCR2':[...C,F('CP12 TCR2 Data',5,168)],'CP12 TCR3':[...C,F('CP12 TCR3 Data',5,168)],'CP12 TCR4':[...C,F('CP12 TCR4 Data',5,168)]};
+const P=['#dbeafe','#dcfce7','#fef3c7','#fce7f3','#ede9fe','#ffedd5','#cffafe','#ccfbf1','#e0e7ff','#fee2e2','#ecfccb','#fae8ff'];
+let original='',display='',selected=null,hits=[],hitIndex=-1;const q=id=>document.getElementById(id),esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),vis=s=>s.replace(/ /g,'-');
+function detect(line,ctx){const t=line[3]||'';if(t==='0'){const a=line.slice(16,20);if(a==='CP01'||a==='CP12')return [`${a} TCR0`,a];if(a==='HEDR'||a==='TRLR')return[a,null];return['Unknown TCR0',null]}if(ctx&&/[1-8]/.test(t))return[`${ctx} TCR${t}`,ctx];return['Unknown Record',ctx]}
+function fitViewer(){
+ if(!document.body.classList.contains('transformed-mode'))return;
+ const shell=q('shell');
+ const gutter=Math.max(38,String(document.querySelectorAll('.gline').length).length*9+18);
+ document.body.style.setProperty('--gutter-width',gutter+'px');
+ const available=Math.max(320,shell.clientWidth-gutter-10);
+ const probe=document.createElement('span');
+ probe.style.cssText='position:fixed;visibility:hidden;white-space:pre;font-family:Consolas,monospace;font-size:100px';
+ probe.textContent='0'.repeat(168);document.body.appendChild(probe);
+ const widthAt100=probe.getBoundingClientRect().width;probe.remove();
+ const size=Math.max(5.2,Math.min(14,available/widthAt100*100));
+ document.body.style.setProperty('--fit-font-size',size.toFixed(2)+'px');
+}
+function enterFullView(){document.body.classList.add('transformed-mode');requestAnimationFrame(()=>{fitViewer();q('shell').scrollTop=0})}
+function exitFullView(){document.body.classList.remove('transformed-mode');document.body.style.removeProperty('--fit-font-size');document.body.style.removeProperty('--gutter-width');q('tip').style.display='none'}
+function transform(){original=q('src').value;if(!original.trim()){q('notice').textContent='Paste a TC33A file first.';return}q('notice').textContent='';let lines=original.replace(/\r/g,'').split('\n');if(q('ignoreEmpty').checked)lines=lines.filter(x=>x.length);if(lines.some(x=>x.includes('\t')))q('notice').textContent='Warning: Tabs detected. Tabs do not have a reliable fixed width.';let ctx=null,g='',c='',valid=0,bad=0,unknown=0,hedr=0,trlr=0,cp01=0,cp12=0;const transformed=[];
+lines.forEach((source,i)=>{let line=q('dashInput').checked?source.replace(/-/g,' '):source;const [name,next]=detect(line,ctx);ctx=next;if(name==='HEDR')hedr++;if(name==='TRLR')trlr++;if(name==='CP01 TCR0')cp01++;if(name==='CP12 TCR0')cp12++;const fields=L[name],isValid=line.length===168;if(isValid)valid++;else bad++;if(!fields)unknown++;g+=`<div class="gline ${!isValid?'bad':!fields?'unknown':''}" title="Line ${i+1}: ${esc(name)}, length ${line.length}">${i+1}</div>`;let content='';if(fields){fields.forEach((f,j)=>{let raw=line.slice(f.start-1,f.end);if(raw.length<f.length)raw=raw.padEnd(f.length,' ');content+=`<span class="field" data-field="${esc(f.name)}" data-record="${esc(name)}" data-line="${i+1}" data-position="${f.start}${f.end===f.start?'':'-'+f.end}" data-length="${f.length}" data-original="${esc(raw)}" style="background:${P[j%P.length]}">${esc(vis(raw))}</span>`});if(line.length>168){const ex=line.slice(168);content+=`<span class="field extra" data-field="Extra Characters" data-record="${esc(name)}" data-line="${i+1}" data-position="169-${line.length}" data-length="${ex.length}" data-original="${esc(ex)}">${esc(vis(ex))}</span>`}}else content=`<span class="field" data-field="Unknown Record" data-record="${esc(name)}" data-line="${i+1}" data-position="1-${line.length}" data-length="${line.length}" data-original="${esc(line)}" style="background:#fee2e2">${esc(vis(line))}</span>`;c+=`<div class="cline" data-record="${esc(name)}">${content}</div>`;transformed.push(vis(line))});
+display=transformed.join('\n');q('viewer').className='editor';q('viewer').innerHTML=`<div class="gutter">${g}</div><div class="content">${c}</div>`;const m=[['Lines',lines.length],['Valid 168-char',valid],['Invalid length',bad],['HEDR',hedr],['TRLR',trlr],['CP01 groups',cp01],['CP12 groups',cp12],['Unknown',unknown]];q('summary').innerHTML=m.map(x=>`<div><b>${x[1]}</b><span>${x[0]}</span></div>`).join('');q('summaryPanel').hidden=false;bindFields();enterFullView()}
+function bindFields(){
+ const viewer=q('viewer'),tip=q('tip');
+ viewer.onpointerover=e=>{
+  const f=e.target.closest('.field');if(!f)return;
+  tip.innerHTML=`Field: ${esc(f.dataset.field)}<br>Position: ${f.dataset.position}<br>Length: ${f.dataset.length}`;
+  tip.style.display='block';
+ };
+ viewer.onpointermove=e=>{
+  if(tip.style.display!=='block')return;
+  const gap=14,w=tip.offsetWidth,h=tip.offsetHeight;
+  let left=e.clientX+gap,top=e.clientY+gap;
+  if(left+w>window.innerWidth-6)left=e.clientX-w-gap;
+  if(top+h>window.innerHeight-6)top=e.clientY-h-gap;
+  tip.style.left=Math.max(4,left)+'px';tip.style.top=Math.max(4,top)+'px';
+ };
+ viewer.onpointerout=e=>{
+  const from=e.target.closest&&e.target.closest('.field');
+  const to=e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('.field');
+  if(from!==to)tip.style.display='none';
+ };
+ viewer.ondblclick=e=>{
+  const f=e.target.closest('.field');if(!f)return;e.preventDefault();
+  document.querySelectorAll('.field.selected').forEach(x=>x.classList.remove('selected'));
+  f.classList.add('selected');selected=f;
+  const r=document.createRange();r.selectNodeContents(f);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);
+ };
+}
+async function copy(text,msg){try{await navigator.clipboard.writeText(text);q('copyStatus').textContent=msg;setTimeout(()=>q('copyStatus').textContent='',1600)}catch{q('copyStatus').textContent='Copy failed'}}
+function findNext(){document.querySelectorAll('.search-hit').forEach(x=>x.classList.remove('search-hit'));const s=q('search').value.trim().toLowerCase();if(!s)return;hits=[...document.querySelectorAll('.field')].filter(f=>f.dataset.field.toLowerCase().includes(s)||f.dataset.record.toLowerCase().includes(s)||f.textContent.toLowerCase().includes(s)||('line '+f.dataset.line).includes(s));if(!hits.length){q('copyStatus').textContent='No match';return}hitIndex=(hitIndex+1)%hits.length;hits[hitIndex].classList.add('search-hit');hits[hitIndex].scrollIntoView({block:'center',inline:'center'})}
+q('transform').onclick=transform;q('exitFull').onclick=exitFullView;window.addEventListener('resize',fitViewer);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('transformed-mode'))exitFullView()});q('clear').onclick=()=>{q('src').value='';q('viewer').className='empty';q('viewer').textContent='Transformed file will appear here as one continuous text-area-style view.';q('summaryPanel').hidden=true;q('notice').textContent=''};q('sample').onclick=()=>q('src').value='3305san23'.padEnd(168,' ');q('find').onclick=findNext;q('search').onkeydown=e=>{if(e.key==='Enter')findNext()};q('copyOriginal').onclick=()=>copy(original,'Original copied');q('copyDisplay').onclick=()=>copy(display,'Transformed copied');q('copyField').onclick=()=>selected?copy(selected.textContent,'Field copied'):(q('copyStatus').textContent='Double-click a field first');
+</script></body></html>
